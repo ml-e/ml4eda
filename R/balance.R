@@ -55,3 +55,31 @@ test_means <- function(df) {
     x2=sum(mean_x2) / sqrt(sum(se_x2))
   )
 }
+
+
+test_ols <- function(df) {
+  model <- lm(treatment ~ x1 + x2, df)
+  fstat <- summary(model)$fstatistic
+  pf(
+    x$fstatistic[1L], 
+    x$fstatistic[2L],
+    x$fstatistic[3L],
+    lower.tail = FALSE)
+}
+
+
+test_prediction <- function(df, permuations=1000, test_frac=0.2, method=lm) {
+  loss <- function(predicted, true) mean((predictions - true) ^ 2)
+  is_test <- as.logical(rbinom(nrow(df), 1, test_frac))
+  test <- df[is_test, ]
+  train <- df[!is_test, ]
+  model <- method(treatment ~ x1 + x2, df)
+  predictions <- predict(model, test)
+  observed_loss <- mean((predictions - test$treatment) ^ 2)
+  
+  loss_samples <- sapply(1:permuations, function(i) {
+    loss(predictions, sample(test$treatment))
+  })
+  percentile <- ecdf(loss_samples)
+  percentile(observed_loss)
+}
