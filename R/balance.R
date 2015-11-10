@@ -94,18 +94,20 @@ cross_val <- function(df, method, k=5) {
    model <- method(train)
    list(true=test$treatment, predicted=predict(model, test))
  })
- list(true=flatmap(out, ~.$true), predicted=flatmap(out, ~.$predicted))
+ list(true=map(out, ~.$true), predicted=map(out, ~.$predicted))
 }
 
 test_prediction <- function(df, permutations=1000, test_frac=0.2, method=ols) {
   loss <- function(predicted, true) sum(abs((predicted > .5) - true))
   out <- cross_val(df, method)
   predictions <- out$predicted
+  predictions <- flatten(predictions)
   true <- out$true
-  observed_loss <- loss(predictions, true)
+  observed_loss <- loss(predictions, flatten(true))
   
   loss_samples <- sapply(1:permutations, function(i) {
-    loss(predictions, sample(true))
+    resample <- flatmap(true, sample)
+    loss(predictions, resample)
   })
   percentile <- ecdf(loss_samples)
   percentile(observed_loss)
@@ -177,8 +179,10 @@ summarize_output <- function(output) {
   summarize(g, rejection_pct=sum(result<.05)/n())
 }
 
-save_output <- function(output) {
-  write.csv(output, 'results.csv')
+suff <- function(base, suffix) paste(base, suffix, '.csv', sep='')
+
+save_output <- function(output, suffix='') {
+  write.csv(output, suff('results', suffix))
   summarized <- summarize_output(output)
-  write.csv(summarized, 'summary.csv')
+  write.csv(summarized, suff('summary', suffix))
 }
