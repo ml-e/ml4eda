@@ -1,0 +1,6 @@
+# Export all names
+exportPattern(".")
+import(dplyr)
+import(parallel)
+import(purrr)
+import(ggplot2)

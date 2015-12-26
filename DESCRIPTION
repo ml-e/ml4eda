@@ -1,0 +1,11 @@
+Package: ml4edas
+Version: 0.1
+Date: 12/26/2015
+Title: Machine Learning for Experimental Data Analysis
+LazyLoad: yes
+Imports: 
+  dplyr,
+  ggplot2,
+  parallel,
+  purrr
+  

@@ -97,21 +97,41 @@ cross_val <- function(df, method, k=5) {
  list(true=map(out, ~.$true), predicted=map(out, ~.$predicted))
 }
 
-test_prediction <- function(df, permutations=1000, test_frac=0.2, method=ols) {
-  loss <- function(predicted, true) sum(abs((predicted > .5) - true))
-  out <- cross_val(df, method)
-  predictions <- out$predicted
-  predictions <- flatten(predictions)
-  true <- out$true
-  observed_loss <- loss(predictions, flatten(true))
+test_prediction <- function(df, cross_validate=TRUE, k=5, permutations=1000, loss='mse', method=ols) {
+  if (cross_validate) {
+    out <- cross_val(df, method, k=k)
+    predictions <- out$predicted
+    predictions <- flatten(out$predicted)
+    true <- out$true
+  } else {
+    out <- cross_val(df, method, k=2)
+    predictions <- out$predicted[[1]]
+    true <- out$true[1]
+  }
   
-  loss_samples <- sapply(1:permutations, function(i) {
-    resample <- flatmap(true, sample)
-    loss(predictions, resample)
-  })
+  perms <- flatten(rep(true, permutations))
+  x.s <- sample(seq_along(perms))
+  idx <- ((x.s - 1) %/% (length(flatten(true)) / length(true))) + 1
+  perms <- perms[x.s][order(idx)]
+  pmat <- matrix(perms, nrow=length(flatten(true)))
+  
+  if (loss == 'absolute') {
+    preds <- predictions > .5
+    observed_loss <- mean(abs(preds - flatten(true)))
+    loss_samples <- colMeans(abs(pmat - preds))
+    loss_samples <- jitter(loss_samples)
+    observed_loss <- jitter(observed_loss)
+  } else if (loss == 'mse') {
+    observed_loss <- mean((predictions - flatten(true)) ^ 2)
+    loss_samples <- colMeans((pmat - predictions) ^ 2)
+  }
+  else stop(paste('unrecognized loss:', loss))
+  
+  
   percentile <- ecdf(loss_samples)
   percentile(observed_loss)
 }
+
 
 ols <- function(df) {
   lm(treatment ~ x1 + x2, df)
@@ -121,8 +141,18 @@ test_ols_prediction <- function(df) {
   test_prediction(df, method=ols)
 }
 
+test_ols_prediction_no_cv <- function(df) {
+  test_prediction(df, cross_validate=FALSE, method=ols)
+}
+
+
 ols_ix <- function(df) {
   lm(treatment ~ x1 + x2 + x1 * x2, df)
+}
+
+
+test_ols_ix_prediction_no_cv <- function(df) {
+  test_prediction(df, cross_validate=FALSE, method=ols_ix)
 }
 
 test_ols_ix_prediction <- function(df) {
@@ -133,17 +163,39 @@ tree <- function(df) {
   rpart::rpart(treatment ~ x1 + x2, df)
 }
 
+test_tree_prediction_no_cv <- function(df) {
+  test_prediction(df, cross_validate=FALSE, method=tree)
+}
+
 test_tree_prediction <- function(df) {
   test_prediction(df, method=tree)
 }
+
+random <- function(df) {
+  structure(1, class='rnd')
+}
+
+predict.rnd <- function(res, df, ...) {
+  runif(nrow(df))
+}
+
+test_random <- function(df) {
+  test_prediction(df, cross_validate=FALSE, method=random)
+}
+
+PRED_TESTS <- c('ols_prediction_no_cv', 'random_prediction')
 
 TESTS <- list(
   means=test_means,
   # permutation=test_permutation,
   ols=test_ols,
   ols_prediction=test_ols_prediction,
+  ols_prediction_no_cv=test_ols_prediction_no_cv,
   ols_ix_prediction=test_ols_ix_prediction,
-  tree_prediction=test_tree_prediction
+  ols_ix_prediction_no_cv=test_ols_ix_prediction_no_cv,
+  tree_prediction=test_tree_prediction,
+  tree_prediction_no_cv=test_tree_prediction_no_cv,
+  random_prediction=test_random
 )
 RHOS <- c(0., 0.5)
 
@@ -160,7 +212,7 @@ run_one <- function(sim_name, test_name, rho, n, count=100) {
 
 
 run_all <- function(sim_names=names(SIMS), test_names=names(TESTS), rhos=RHOS, ns=200, count=100) {
-  grid <- expand.grid(sim_names=sim_names, test_names=test_names, rhos=rhos, ns=ns)
+  grid <- expand.grid(sim_names=sim_names, test_names=test_names, rhos=rhos, ns=ns, stringsAsFactors=FALSE)
   results <- mcmapply(
     run_one,
     grid$sim_names,
