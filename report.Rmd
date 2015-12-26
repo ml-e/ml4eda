@@ -1,0 +1,25 @@
+---
+title: "ml4edas"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      warning=FALSE, message=FALSE)
+options(width = 250)
+```
+
+```{r preamble, echo=FALSE}
+library(knitr)
+library(dplyr)
+```
+
+```{r table, echo=FALSE}
+# results <- ml4edas::run_all()
+results <- read.csv('summary_cv.csv')
+results <- select(results, -X)
+kable(results)
+```
+
+* Each row was aggregated from 1000 simulations.
+* Prediction tests used 1000 permutations. I used mean squared error (on class probabilities). Absolute classification error did not give correctly sized tests, possibly due to ties.
